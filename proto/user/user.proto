@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "latihan_auth/generated/go/user;userpb";
+
+// UserService = dipanggil auth-service via gRPC setelah user berhasil
+// register/login Google, buat sinkronin profil dasar ke database milik
+// user-service sendiri (pola "database per service").
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}
+
+message CreateUserRequest {
+  string user_id  = 1;
+  string email    = 2;
+  string username = 3;
+  string role     = 4;
+}
+
+message CreateUserResponse {
+  bool success = 1;
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  string user_id  = 1;
+  string email    = 2;
+  string username = 3;
+  string role     = 4;
+}
