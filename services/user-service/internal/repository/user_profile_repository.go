@@ -29,3 +29,7 @@ func (r *userProfileRepository) FindByID(ctx context.Context, userID string) (*d
 	}
 	return &p, err
 }
+
+func (r *userProfileRepository) UpdateAvatarURL(ctx context.Context, userID, key string) error {
+	return r.db.WithContext(ctx).Model(&domain.UserProfile{}).Where("user_id = ?", userID).Update("avatar_url", key).Error
+}

@@ -321,6 +321,9 @@ SMTP_FROM=noreply@example.com        # alamat pengirim yang muncul di kolom "Fro
 ```
 
 ### 2.3 Kirim email
+
+https://readmedium.com/sending-emails-with-go-golang-using-smtp-gmail-and-oauth2-185ee12ab306
+
 `services/auth-service/internal/mailer/smtp.go` — dibungkus struct + interface (`usecase.Mailer`) biar usecase gak bergantung ke `net/smtp` langsung:
 ```go
 type Config struct {
@@ -443,28 +446,3 @@ Handler-nya (`POST /api/auth/forgot-password` dan `POST /api/auth/verify-otp`) t
 
 GORM auto-migrate (opsional, ganti bikin manual `CREATE TABLE`): `db.AutoMigrate(&User{}, &OTPCode{})` — bikin/update tabel otomatis sesuai struct saat startup, cocok buat quiz biar cepat.
 
-### 2.6 Kalau beda
-
-| Kalau... | Yang berubah |
-|---|---|
-| Service dipisah (gRPC) | `Send` di `mailer.SMTPMailer` tetap sama persis, dibungkus 1 gRPC handler yang manggil fungsi ini. Kalau monolith: panggil langsung dari usecase register/forgot-password, skip gRPC. |
-| Verifikasi pakai link, bukan kode | Generate token random hex 32 byte (`crypto/rand`), kirim URL `?token=xxx` di body email, endpoint verifikasi jadi `GET` (user klik dari email) bukan `POST` body JSON. |
-| Storage pakai Redis, bukan SQL | `SET otp:<user_id> code EX 300` lalu `GET`/`DEL` — TTL Redis otomatis handle expired, gak perlu cek `expires_at` manual lagi. |
-| Panjang kode beda | Ganti `%06d` + `n%1000000` (mis. `%04d` + `n%10000` untuk 4 digit). |
-
----
-
-## 3. Checklist
-- [ ] `npm install @react-oauth/google`, bungkus `GoogleOAuthProvider`, panggil lewat `api.loginGoogle()` (bukan `fetch` inline).
-- [ ] `verifyGoogleIDToken`: cek status 200, `sub`/`email` tidak kosong, `aud == client_id`.
-- [ ] Urutan cari user: **by google_id → by email (link) → buat baru (IsVerified=true)**.
-- [ ] User/OTP repository dipisah jadi *interface* (`domain`) + implementasi GORM (`repository`) — usecase gak boleh import `gorm.io/gorm` langsung.
-- [ ] Kalau setup microservice: sinkron profil user baru ke service lain lewat gRPC (fire-and-forget), skip kalau monolith.
-- [ ] SMTP: header MIME pakai `\r\n`, baris kosong pemisah header/body.
-- [ ] OTP: `crypto/rand`, format `%06d`.
-- [ ] `ForgotPassword`/`VerifyOTP` cari user **by email**, bukan by ID — endpoint publik cuma tahu email.
-- [ ] OTP dicek expired + ditandai `used_at` setelah dipakai.
-- [ ] Endpoint privat (`/api/me`) diproteksi `JWTMiddleware()`, validasi token lewat `uc.ValidateToken(...)` di usecase, bukan parse JWT langsung di middleware.
-- [ ] Sebelum nulis: cek nama tabel/kolom & pola error punya kelompokmu, ganti query di atas sesuai itu.
-
-Lihat juga [OAuth_smtp_notes.md](OAuth_smtp_notes.md) untuk versi ringkas (cuma frontend, verifikasi id_token, dan handler endpoint ditulis lengkap; sisanya dijelaskan sebagai alur).

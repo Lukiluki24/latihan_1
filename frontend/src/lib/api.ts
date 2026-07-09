@@ -51,4 +51,22 @@ export const api = {
     }),
 
   me: () => request<{ user_id: string; email: string }>('/me'),
+
+  // Multipart upload gak lewat request() biasa: Content-Type (dengan boundary)
+  // harus di-set browser sendiri, jadi kita gak boleh maksa 'application/json'.
+  // Path-nya /users/me/avatar (bukan /me/avatar) karena avatar itu data profil,
+  // di-handle user-service — nginx proxy /api/users/* ke situ, beda dari
+  // /api/* lain yang ke auth-service.
+  uploadAvatar: async (file: File) => {
+    const form = new FormData()
+    form.append('avatar', file)
+    const res = await fetch(BASE + '/users/me/avatar', {
+      method: 'PUT',
+      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      body: form,
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) throw new Error(data?.error || `Request failed with status ${res.status}`)
+    return data as { avatar_url: string }
+  },
 }

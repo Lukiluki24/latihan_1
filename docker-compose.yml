@@ -41,9 +41,23 @@ services:
       user-service:
         condition: service_started
 
-  # user-service: cuma nyimpen profil (email/username/role), diisi lewat gRPC
-  # CreateUser yang dipanggil auth-service. Gak expose port ke host, cuma
-  # dipanggil internal via docker network.
+  # SeaweedFS = blob storage buat avatar. `weed server -s3` gabungin
+  # master+volume+filer+s3-gateway jadi 1 proses/container — paling simpel
+  # buat latihan (di production biasanya dipecah jadi container terpisah
+  # per komponen supaya volume server bisa di-scale sendiri).
+  # Auth di-skip (jalan di "Allow-All Mode") karena ini cuma latihan.
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    command: server -s3 -dir=/data
+    volumes:
+      - seaweedfs-data:/data
+
+  # user-service: nyimpen profil (email/username/role/avatar), diisi lewat gRPC
+  # CreateUser yang dipanggil auth-service. gRPC gak di-expose ke host (cuma
+  # dipanggil internal via docker network), tapi HTTP-nya DI-proxy nginx
+  # (lihat frontend/nginx.conf) buat endpoint avatar — avatar itu data profil,
+  # jadi ownernya user-service, bukan auth-service. Validasi JWT dilakukan
+  # sendiri di sini (JWT_SECRET harus sama persis dengan punya auth-service).
   user-service:
     build:
       context: .
@@ -54,11 +68,17 @@ services:
       POSTGRES_DB: user_db
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      SEAWEEDFS_S3_ENDPOINT: http://seaweedfs:8333
+      SEAWEEDFS_BUCKET: avatars
     depends_on:
       postgres:
         condition: service_healthy
+      seaweedfs:
+        condition: service_started
 
-  # nginx = reverse proxy tunggal: serve frontend static build + proxy /api ke auth-service.
+  # nginx = reverse proxy tunggal: serve frontend static build + proxy
+  # /api/users ke user-service, sisanya /api ke auth-service.
   # Ini satu-satunya container yang expose port ke host.
   nginx:
     build:
@@ -69,6 +89,8 @@ services:
       - "80:80"
     depends_on:
       - auth-service
+      - user-service
 
 volumes:
   pgdata:
+  seaweedfs-data:
